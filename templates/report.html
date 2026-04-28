@@ -1,0 +1,266 @@
+{% extends "base.html" %}
+
+{% block title %}Audit Report | Unbiased AI{% endblock %}
+
+{% block content %}
+{% set risk = (llm_interpretation.overall_risk_level or 'medium')|lower %}
+
+<section class="grid" style="gap: 14px;">
+    <div class="toggle-section">
+        <input id="section-1" type="checkbox" checked>
+        <label class="toggle-label" for="section-1">Section 1 - Fairness Scorecard</label>
+        <div class="toggle-content">
+            <div class="grid grid-2" style="align-items: center; gap: 16px;">
+                <div>
+                    <div class="metric-value">{{ llm_interpretation.overall_fairness_score or 0 }}</div>
+                    <div class="metric-muted">Overall Fairness Score (0-100)</div>
+                </div>
+                <div class="grid" style="gap: 10px;">
+                    <span class="badge badge-{{ risk }}">{{ llm_interpretation.overall_risk_level or 'medium' }} risk</span>
+                    <p>{{ llm_interpretation.executive_summary }}</p>
+                    <p><strong>Target:</strong> {{ target_col }} | <strong>Sensitive:</strong> {{ sensitive_cols | join(', ') }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="toggle-section">
+        <input id="section-2" type="checkbox" checked>
+        <label class="toggle-label" for="section-2">Section 2 - Key Findings</label>
+        <div class="toggle-content">
+            <ol style="margin: 0; padding-left: 20px; display: grid; gap: 9px;">
+                {% for finding in llm_interpretation.key_findings %}
+                    <li>{{ finding }}</li>
+                {% endfor %}
+            </ol>
+        </div>
+    </div>
+
+    <div class="toggle-section">
+        <input id="section-3" type="checkbox" checked>
+        <label class="toggle-label" for="section-3">Section 3 - Dataset Metrics</label>
+        <div class="toggle-content">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Metric</th>
+                        <th>Value</th>
+                        <th>Threshold</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for attr, value in dataset_metrics.disparate_impact.items() %}
+                    <tr>
+                        <td>Disparate Impact ({{ attr }})</td>
+                        <td>{{ "%.4f"|format(value) if value is not none else "N/A" }}</td>
+                        <td>&gt;= 0.80</td>
+                        <td class="{{ 'status-pass' if value is not none and value >= 0.8 else 'status-fail' }}">
+                            {{ 'PASS' if value is not none and value >= 0.8 else 'FAIL' }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+
+                    {% for attr, value in dataset_metrics.statistical_parity_difference.items() %}
+                    <tr>
+                        <td>Statistical Parity Difference ({{ attr }})</td>
+                        <td>{{ "%.4f"|format(value) if value is not none else "N/A" }}</td>
+                        <td>|value| &lt;= 0.10</td>
+                        <td class="{{ 'status-pass' if value is not none and value|abs <= 0.1 else 'status-fail' }}">
+                            {{ 'PASS' if value is not none and value|abs <= 0.1 else 'FAIL' }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+
+                    {% set consistency = dataset_metrics.consistency_score %}
+                    <tr>
+                        <td>Consistency Score</td>
+                        <td>{{ "%.4f"|format(consistency) if consistency is not none else "N/A" }}</td>
+                        <td>&gt;= 0.80</td>
+                        <td class="{{ 'status-pass' if consistency is not none and consistency >= 0.8 else 'status-fail' }}">
+                            {{ 'PASS' if consistency is not none and consistency >= 0.8 else 'FAIL' }}
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="toggle-section">
+        <input id="section-4" type="checkbox" checked>
+        <label class="toggle-label" for="section-4">Section 4 - Proxy Variable Warnings</label>
+        <div class="toggle-content">
+            {% if proxy_variables %}
+                <div class="grid grid-2">
+                    {% for proxy in proxy_variables %}
+                    <div class="proxy-card">
+                        <strong>{{ proxy.feature }}</strong>
+                        <p>Correlated with: <strong>{{ proxy.correlated_with }}</strong></p>
+                        <p>Score: {{ proxy.correlation_score }} ({{ proxy.metric }})</p>
+                        <p>Risk: <strong>{{ proxy.risk_level }}</strong></p>
+                    </div>
+                    {% endfor %}
+                </div>
+                <p style="margin-top: 12px;">{{ llm_interpretation.proxy_variable_explanation }}</p>
+            {% else %}
+                <p>No high-risk proxy variables were detected above the configured threshold.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="toggle-section">
+        <input id="section-5" type="checkbox" checked>
+        <label class="toggle-label" for="section-5">Section 5 - Model Fairness by Group</label>
+        <div class="toggle-content">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Sensitive Attribute</th>
+                        <th>Group</th>
+                        <th>Accuracy</th>
+                        <th>Selection Rate</th>
+                        <th>FPR</th>
+                        <th>FNR</th>
+                        <th>Equalized Odds Diff</th>
+                        <th>Demographic Parity Diff</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for sensitive, details in model_metrics.items() %}
+                        {% for group, gm in details.by_group.items() %}
+                        <tr>
+                            <td>{{ sensitive }}</td>
+                            <td>{{ group }}</td>
+                            <td>{{ "%.4f"|format(gm.accuracy_score) if gm.accuracy_score is not none else "N/A" }}</td>
+                            <td>{{ "%.4f"|format(gm.selection_rate) if gm.selection_rate is not none else "N/A" }}</td>
+                            <td>{{ "%.4f"|format(gm.false_positive_rate) if gm.false_positive_rate is not none else "N/A" }}</td>
+                            <td>{{ "%.4f"|format(gm.false_negative_rate) if gm.false_negative_rate is not none else "N/A" }}</td>
+                            <td>{{ "%.4f"|format(details.equalized_odds_difference) if details.equalized_odds_difference is not none else "N/A" }}</td>
+                            <td>{{ "%.4f"|format(details.demographic_parity_difference) if details.demographic_parity_difference is not none else "N/A" }}</td>
+                        </tr>
+                        {% endfor %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="toggle-section">
+        <input id="section-6" type="checkbox" checked>
+        <label class="toggle-label" for="section-6">Section 6 - Feature Importance</label>
+        <div class="toggle-content">
+            {{ shap_chart_html | safe }}
+        </div>
+    </div>
+
+    <div class="toggle-section">
+        <input id="section-7" type="checkbox" checked>
+        <label class="toggle-label" for="section-7">Section 7 - Counterfactual Results</label>
+        <div class="toggle-content">
+            <div class="grid grid-3" style="margin-bottom: 14px;">
+                <div class="card">
+                    <h3>{{ counterfactual_results.counterfactual_fairness_score }}%</h3>
+                    <p>Counterfactual Fairness Score</p>
+                </div>
+                <div class="card">
+                    <h3>{{ counterfactual_results.instability_rate }}%</h3>
+                    <p>Prediction Instability Rate</p>
+                </div>
+                <div class="card">
+                    <h3>{{ counterfactual_results.most_sensitive_attribute or 'N/A' }}</h3>
+                    <p>Most Sensitive Attribute</p>
+                </div>
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Row Index</th>
+                        <th>Attribute</th>
+                        <th>Original Value</th>
+                        <th>Modified Value</th>
+                        <th>Original Prediction</th>
+                        <th>Modified Prediction</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in counterfactual_results.example_flip_cases %}
+                    <tr>
+                        <td>{{ row.row_index }}</td>
+                        <td>{{ row.attribute }}</td>
+                        <td>{{ row.original_value }}</td>
+                        <td>{{ row.modified_value }}</td>
+                        <td>{{ row.original_prediction }}</td>
+                        <td>{{ row.modified_prediction }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6">No prediction flips found in sampled counterfactual checks.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="toggle-section">
+        <input id="section-8" type="checkbox" checked>
+        <label class="toggle-label" for="section-8">Section 8 - Explainable Sample Predictions</label>
+        <div class="toggle-content">
+            {% if sample_predictions %}
+                <p style="margin-bottom: 12px; color: var(--muted);">Click on any row to see a detailed SHAP explanation for that prediction.</p>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Test Index</th>
+                            <th>Prediction</th>
+                            <th>Confidence</th>
+                            <th>Actual Value</th>
+                            <th style="text-align: center;">Match</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for pred in sample_predictions %}
+                        <tr data-record="{{ pred.record_json }}" data-index="{{ pred.index }}" style="cursor: pointer; user-select: none;">
+                            <td>{{ pred.index }}</td>
+                            <td><strong>{{ pred.prediction }}</strong></td>
+                            <td>{{ "%.2f"|format(pred.confidence * 100) }}%</td>
+                            <td>{{ pred.actual }}</td>
+                            <td style="text-align: center;">
+                                {% if pred.prediction == pred.actual %}
+                                    <span style="color: #0f6e52; font-weight: 700;">✓</span>
+                                {% else %}
+                                    <span style="color: #8a2424; font-weight: 700;">✗</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p>No sample predictions available. Run an analysis to generate explainable predictions.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="toggle-section">
+        <input id="section-9" type="checkbox" checked>
+        <label class="toggle-label" for="section-9">Section 9 - Recommendations</label>
+        <div class="toggle-content">
+            <ol style="margin: 0; padding-left: 20px; display: grid; gap: 12px;">
+                {% for rec in recommendations %}
+                <li class="recommendation">
+                    <div>
+                        <span class="badge badge-{{ rec.level }}">{{ rec.level }}</span>
+                    </div>
+                    <strong>{{ rec.strategy }}</strong>
+                    <p><strong>Reason:</strong> {{ rec.reason }}</p>
+                    <p><strong>Expected Impact:</strong> {{ rec.expected_impact }}</p>
+                    <code>{{ rec.code_hint }}</code>
+                </li>
+                {% endfor %}
+            </ol>
+        </div>
+    </div>
+</section>
+{% endblock %}

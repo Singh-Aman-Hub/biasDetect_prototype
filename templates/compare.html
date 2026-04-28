@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}Simulation Compare | Unbiased AI{% endblock %}
+
+{% block content %}
+<section class="grid" style="gap: 14px;">
+    <div class="card">
+        <h1 style="margin-bottom: 8px;">Before vs After Fairness Simulation</h1>
+        <p>
+            Compare model quality and fairness metrics between the original dataset and the mitigated dataset.
+            Positive deltas are highlighted when they represent improvement for the metric type.
+        </p>
+    </div>
+
+    {% if comparison %}
+    <div class="card">
+        <h2 style="margin-bottom: 12px;">Metric Comparison</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Metric</th>
+                    <th>Original</th>
+                    <th>Cleaned</th>
+                    <th>Delta (Cleaned - Original)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% set metrics = ['accuracy', 'demographic_parity_difference', 'equalized_odds_difference'] %}
+                {% for metric in metrics %}
+                    {% set original_value = comparison.original[metric] %}
+                    {% set cleaned_value = comparison.cleaned[metric] %}
+                    {% set delta = comparison.delta[metric] %}
+
+                    {% if metric == 'accuracy' %}
+                        {% set improved = delta >= 0 %}
+                    {% else %}
+                        {% set improved = delta <= 0 %}
+                    {% endif %}
+
+                    <tr>
+                        <td>{{ metric }}</td>
+                        <td>{{ "%.4f"|format(original_value) }}</td>
+                        <td>{{ "%.4f"|format(cleaned_value) }}</td>
+                        <td class="{{ 'delta-good' if improved else 'delta-bad' }}">{{ "%+.4f"|format(delta) }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card">
+        <h2 style="margin-bottom: 12px;">Grouped Metric Chart</h2>
+        {{ comparison_chart_html | safe }}
+    </div>
+    {% else %}
+    <div class="card">
+        <p>No comparison data yet. Run an analysis from the Upload page first.</p>
+    </div>
+    {% endif %}
+
+    <div class="card">
+        <h2 style="margin-bottom: 12px;">LLM Narrative</h2>
+        <div class="narrative">{{ full_report_narrative }}</div>
+    </div>
+</section>
+{% endblock %}

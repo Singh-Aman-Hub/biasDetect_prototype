@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block title %}Upload Dataset | Unbiased AI{% endblock %}
+
+{% block content %}
+<section class="grid" style="gap: 20px;">
+    <div class="card" style="padding: 26px; background: linear-gradient(135deg, #ffffff 0%, #f2faf7 80%);">
+        <h1>Detect and Fix Bias in Your AI Systems</h1>
+        <p style="margin-top: 10px; max-width: 760px;">
+            Upload a CSV dataset, run fairness diagnostics, inspect proxy risk and model behavior,
+            and generate practical mitigation recommendations from one FastAPI application.
+        </p>
+    </div>
+
+    <div class="card" style="max-width: 760px; margin: 0 auto; width: 100%;">
+        <h2 style="margin-bottom: 14px;">Start a New Bias Audit</h2>
+
+        {% if error_message %}
+            <div class="alert-error" style="margin-bottom: 14px;">{{ error_message }}</div>
+        {% endif %}
+
+        <div class="field" style="margin-bottom: 16px;">
+            <label>Analysis Mode</label>
+            <div style="display: grid; gap: 8px;">
+                <label style="display: flex; align-items: center; font-weight: 400; cursor: pointer;">
+                    <input type="radio" name="pipeline_mode" value="standard" checked id="mode-standard" style="width: auto; margin-right: 8px;">
+                    <span><strong>Standard Audit</strong> - Interactive fairness analysis with LLM reasoning</span>
+                </label>
+                <label style="display: flex; align-items: center; font-weight: 400; cursor: pointer;">
+                    <input type="radio" name="pipeline_mode" value="full" id="mode-full" style="width: auto; margin-right: 8px;">
+                    <span><strong>Full Pipeline</strong> - Comprehensive 7-layer analysis</span>
+                </label>
+            </div>
+        </div>
+
+        <form action="/analyze" method="post" enctype="multipart/form-data" class="grid" style="gap: 14px;" id="audit-form">
+            <div class="field">
+                <label for="file">CSV Dataset File</label>
+                <input id="file" name="file" type="file" accept=".csv" required>
+            </div>
+
+            <div class="field">
+                <label for="target_col">Target Column Name</label>
+                <input id="target_col" name="target_col" type="text" required value="{{ form_data.target_col }}" placeholder="income">
+            </div>
+
+            <div class="field">
+                <label for="sensitive_cols">Sensitive Columns (comma-separated)</label>
+                <input id="sensitive_cols" name="sensitive_cols" type="text" required value="{{ form_data.sensitive_cols }}" placeholder="gender,race">
+            </div>
+
+            <div class="field">
+                <label for="favorable_label">Favorable Label Value (optional)</label>
+                <input id="favorable_label" name="favorable_label" type="text" value="{{ form_data.favorable_label }}" placeholder="1">
+            </div>
+
+            <div class="field">
+                <label for="dataset_context">Dataset Context Description</label>
+                <textarea id="dataset_context" name="dataset_context" rows="3" placeholder="This is a loan approval dataset with 5000 records.">{{ form_data.dataset_context }}</textarea>
+            </div>
+
+            <div class="field" id="metric-weights-field" style="display: none;">
+                <label for="metric_weights">Metric Weights (JSON, optional)</label>
+                <textarea id="metric_weights" name="metric_weights" rows="2" placeholder='{"accuracy": 0.4, "fairness": 0.6}'></textarea>
+            </div>
+
+            <button class="btn" type="submit">Run Full Fairness Audit</button>
+        </form>
+
+        <script>
+            document.addEventListener("DOMContentLoaded", function() {
+                const modeStandard = document.getElementById("mode-standard");
+                const modeFull = document.getElementById("mode-full");
+                const auditForm = document.getElementById("audit-form");
+                const metricWeightsField = document.getElementById("metric-weights-field");
+
+                function handleModeChange() {
+                    if (modeFull.checked) {
+                        auditForm.action = "/pipeline/run-all";
+                        metricWeightsField.style.display = "grid";
+                    } else {
+                        auditForm.action = "/analyze";
+                        metricWeightsField.style.display = "none";
+                    }
+                }
+
+                modeStandard.addEventListener("change", handleModeChange);
+                modeFull.addEventListener("change", handleModeChange);
+            });
+        </script>
+    </div>
+
+    <div class="grid grid-3">
+        <div class="card">
+            <h3 style="margin-bottom: 8px;">Bias Detection</h3>
+            <p>
+                Quantify disparate impact, statistical parity differences, class imbalance, and
+                group-level performance gaps with AIF360 and Fairlearn.
+            </p>
+        </div>
+        <div class="card">
+            <h3 style="margin-bottom: 8px;">Model Explainability</h3>
+            <p>
+                Generate SHAP-based global importance, individual prediction explanations,
+                and decision narratives for technical and non-technical stakeholders.
+            </p>
+        </div>
+        <div class="card">
+            <h3 style="margin-bottom: 8px;">Mitigation and Simulation</h3>
+            <p>
+                Apply remediation strategies, compare before/after fairness metrics,
+                and prioritize actionable fixes supported by LLM reasoning.
+            </p>
+        </div>
+    </div>
+</section>
+{% endblock %}
