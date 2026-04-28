@@ -3,8 +3,8 @@ uvicorn
 jinja2
 python-multipart
 pandas
-numpy==1.26.4
-scipy==1.11.4
+numpy>=2.0.0
+scipy>=1.13.0
 scikit-learn
 aif360
 fairlearn
@@ -12,5 +12,4 @@ shap
 imbalanced-learn
 plotly
 google-generativeai
-
 python-dotenv
